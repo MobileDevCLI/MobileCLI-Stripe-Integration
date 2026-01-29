@@ -62,6 +62,61 @@ async function checkExistingSubscription(userId: string): Promise<{
 }
 
 /**
+ * Get or create a Stripe Customer for the given user.
+ * Reuses existing stripe_customer_id from subscriptions table if available.
+ */
+async function getOrCreateStripeCustomer(
+  userId: string,
+  stripeSecretKey: string
+): Promise<string> {
+  // Check if user already has a Stripe customer ID in the database
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")
+  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+
+  if (supabaseUrl && supabaseKey) {
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      auth: { autoRefreshToken: false, persistSession: false }
+    })
+
+    const { data } = await supabase
+      .from("subscriptions")
+      .select("stripe_customer_id")
+      .eq("user_id", userId)
+      .not("stripe_customer_id", "is", null)
+      .limit(1)
+      .maybeSingle()
+
+    if (data?.stripe_customer_id) {
+      console.log("Reusing existing Stripe customer:", data.stripe_customer_id)
+      return data.stripe_customer_id
+    }
+  }
+
+  // Create a new Stripe Customer
+  const params = new URLSearchParams()
+  params.append("metadata[user_id]", userId)
+
+  const response = await fetch(`${STRIPE_API_BASE}/v1/customers`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${stripeSecretKey}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: params.toString(),
+  })
+
+  if (!response.ok) {
+    const errorBody = await response.text()
+    console.error("Stripe Customer creation error:", response.status, errorBody)
+    throw new Error(`Failed to create Stripe customer: ${response.status} - ${errorBody}`)
+  }
+
+  const customer = await response.json()
+  console.log("Created new Stripe customer:", customer.id)
+  return customer.id
+}
+
+/**
  * Create a Stripe Checkout Session for subscription
  */
 async function createStripeCheckoutSession(
@@ -77,9 +132,13 @@ async function createStripeCheckoutSession(
     throw new Error("STRIPE_PRICE_ID not configured")
   }
 
+  // Get or create a Stripe Customer (required for Stripe Accounts V2)
+  const customerId = await getOrCreateStripeCustomer(userId, stripeSecretKey)
+
   // Build form-encoded body (Stripe API uses form encoding, not JSON)
   const params = new URLSearchParams()
   params.append("mode", "subscription")
+  params.append("customer", customerId)
   params.append("line_items[0][price]", priceId)
   params.append("line_items[0][quantity]", "1")
   params.append("client_reference_id", userId)
@@ -89,7 +148,7 @@ async function createStripeCheckoutSession(
   // Enable automatic tax calculation if configured in Stripe Dashboard
   params.append("automatic_tax[enabled]", "true")
 
-  console.log("Creating Stripe Checkout Session for user:", userId)
+  console.log("Creating Stripe Checkout Session for user:", userId, "customer:", customerId)
 
   const response = await fetch(`${STRIPE_API_BASE}/v1/checkout/sessions`, {
     method: "POST",
