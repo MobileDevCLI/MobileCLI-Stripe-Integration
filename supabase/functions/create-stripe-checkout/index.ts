@@ -145,8 +145,8 @@ async function createStripeCheckoutSession(
   params.append("metadata[user_id]", userId)
   params.append("success_url", "https://www.mobilecli.com/success?session_id={CHECKOUT_SESSION_ID}")
   params.append("cancel_url", "https://www.mobilecli.com/pricing.html")
-  // Enable automatic tax calculation if configured in Stripe Dashboard
-  params.append("automatic_tax[enabled]", "true")
+  // Note: automatic_tax requires head office address in Stripe Dashboard.
+  // Enable once tax settings are configured: params.append("automatic_tax[enabled]", "true")
 
   console.log("Creating Stripe Checkout Session for user:", userId, "customer:", customerId)
 
