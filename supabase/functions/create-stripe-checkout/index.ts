@@ -5,15 +5,29 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": "https://www.mobilecli.com",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Content-Type": "application/json"
 }
 
 const STRIPE_API_BASE = "https://api.stripe.com"
 
-interface CreateCheckoutRequest {
-  user_id: string
+/**
+ * Authenticate user from JWT token in Authorization header.
+ * Returns the verified user_id - cannot be faked.
+ */
+async function authenticateUser(req: Request): Promise<string> {
+  const authHeader = req.headers.get("authorization")
+  if (!authHeader?.startsWith("Bearer ")) {
+    throw new Error("UNAUTHORIZED")
+  }
+  const token = authHeader.replace("Bearer ", "")
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!
+  const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!
+  const supabase = createClient(supabaseUrl, supabaseAnonKey)
+  const { data: { user }, error } = await supabase.auth.getUser(token)
+  if (error || !user) throw new Error("UNAUTHORIZED")
+  return user.id
 }
 
 /**
@@ -192,22 +206,14 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    const body: CreateCheckoutRequest = await req.json()
-    const { user_id } = body
-
-    if (!user_id) {
+    // Authenticate user from JWT - user_id comes from verified token
+    let user_id: string
+    try {
+      user_id = await authenticateUser(req)
+    } catch {
       return new Response(
-        JSON.stringify({ error: "user_id is required" }),
-        { status: 400, headers: corsHeaders }
-      )
-    }
-
-    // Validate UUID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(user_id)) {
-      return new Response(
-        JSON.stringify({ error: "Invalid user_id format" }),
-        { status: 400, headers: corsHeaders }
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: corsHeaders }
       )
     }
 
@@ -250,8 +256,7 @@ Deno.serve(async (req: Request) => {
     console.error("Error creating checkout session:", err.message || err)
     return new Response(
       JSON.stringify({
-        error: "Failed to create checkout session",
-        details: err.message
+        error: "Failed to create checkout session"
       }),
       { status: 500, headers: corsHeaders }
     )

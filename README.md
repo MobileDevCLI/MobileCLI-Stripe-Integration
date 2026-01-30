@@ -263,6 +263,24 @@ All application code (~9,000+ lines), UI, setup system, API commands, and integr
 
 ## Security
 
+### v3.0.0 Security Hardening
+
+**JWT Authentication (replaces user_id in request body)**
+- All edge functions now authenticate users via JWT token in the `Authorization` header
+- Server extracts `user_id` from the verified token — clients can no longer spoof identity
+- Affected functions: `create-stripe-checkout`, `create-portal-session`, `create-subscription`
+
+**CORS Hardening**
+- Edge function `Access-Control-Allow-Origin` changed from `*` to `https://www.mobilecli.com`
+
+**Row Level Security (RLS)**
+- Migration `004_security_hardening_rls.sql` enables RLS on previously unprotected tables: `payment_history`, `webhook_logs`, `admin_users`, `email_logs`, `user_profiles`
+- Removed overly permissive "Webhook can manage subscriptions" policy (webhooks use `service_role` key which bypasses RLS)
+- Added user-scoped read policies so users can only view their own data
+
+**Error Sanitization**
+- Removed `details: err.message` from error responses to prevent server-side info leakage
+
 ### Credential Storage
 - Keystore passwords stored in `local.properties` (git-ignored)
 - GitHub tokens stored in `~/.termux/github_token`

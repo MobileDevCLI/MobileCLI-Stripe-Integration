@@ -225,11 +225,13 @@ class AccountActivity : AppCompatActivity() {
             val connection = url.openConnection() as java.net.HttpURLConnection
             connection.requestMethod = "POST"
             connection.setRequestProperty("Content-Type", "application/json")
+            connection.setRequestProperty("Authorization", "Bearer ${SupabaseClient.getAccessToken()}")
             connection.doOutput = true
             connection.connectTimeout = 30000
             connection.readTimeout = 30000
 
-            val json = """{"user_id": "$userId"}"""
+            // Body no longer needs user_id - server extracts it from JWT
+            val json = """{}"""
             connection.outputStream.bufferedWriter().use { it.write(json) }
 
             val responseCode = connection.responseCode

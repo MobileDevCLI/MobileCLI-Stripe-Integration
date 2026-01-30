@@ -9,7 +9,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": "https://www.mobilecli.com",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Content-Type": "application/json"
 }
@@ -22,9 +22,26 @@ const PAYPAL_API_BASE = "https://api-m.paypal.com" // Production
 const PLAN_ID = "P-3RH33892X5467024SNFZON2Y"
 
 interface CreateSubscriptionRequest {
-  user_id: string
   return_url?: string
   cancel_url?: string
+}
+
+/**
+ * Authenticate user from JWT token in Authorization header.
+ * Returns the verified user_id - cannot be faked.
+ */
+async function authenticateUser(req: Request): Promise<string> {
+  const authHeader = req.headers.get("authorization")
+  if (!authHeader?.startsWith("Bearer ")) {
+    throw new Error("UNAUTHORIZED")
+  }
+  const token = authHeader.replace("Bearer ", "")
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!
+  const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!
+  const supabase = createClient(supabaseUrl, supabaseAnonKey)
+  const { data: { user }, error } = await supabase.auth.getUser(token)
+  if (error || !user) throw new Error("UNAUTHORIZED")
+  return user.id
 }
 
 /**
@@ -186,26 +203,20 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    // Parse request body
+    // Authenticate user from JWT - user_id comes from verified token
+    let user_id: string
+    try {
+      user_id = await authenticateUser(req)
+    } catch {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: corsHeaders }
+      )
+    }
+
+    // Parse request body for optional fields
     const body: CreateSubscriptionRequest = await req.json()
-    const { user_id, return_url, cancel_url } = body
-
-    // Validate user_id
-    if (!user_id) {
-      return new Response(
-        JSON.stringify({ error: "user_id is required" }),
-        { status: 400, headers: corsHeaders }
-      )
-    }
-
-    // Validate UUID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(user_id)) {
-      return new Response(
-        JSON.stringify({ error: "Invalid user_id format" }),
-        { status: 400, headers: corsHeaders }
-      )
-    }
+    const { return_url, cancel_url } = body
 
     // Default URLs if not provided
     const finalReturnUrl = return_url || "https://www.mobilecli.com/success.html"
@@ -261,8 +272,7 @@ Deno.serve(async (req: Request) => {
     console.error("Error creating subscription:", err.message || err)
     return new Response(
       JSON.stringify({
-        error: "Failed to create subscription",
-        details: err.message
+        error: "Failed to create subscription"
       }),
       { status: 500, headers: corsHeaders }
     )

@@ -137,6 +137,19 @@ object SupabaseClient {
     }
 
     /**
+     * Get the current session's access token for authenticating API calls.
+     * Returns null if no active session exists.
+     */
+    fun getAccessToken(): String? {
+        return try {
+            auth.currentSessionOrNull()?.accessToken
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to get access token", e)
+            null
+        }
+    }
+
+    /**
      * Get current user ID if logged in.
      */
     fun getCurrentUserId(): String? {

@@ -5,7 +5,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": "https://www.mobilecli.com",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, stripe-signature",
   "Content-Type": "application/json"
 }
@@ -408,7 +408,7 @@ Deno.serve(async (req: Request) => {
     console.error("Webhook error:", err.message || err)
     // Return 200 even on errors to prevent Stripe retries during bugs
     return new Response(
-      JSON.stringify({ received: true, error: err.message }),
+      JSON.stringify({ received: true, error: "Internal server error" }),
       { status: 200, headers: corsHeaders }
     )
   }
