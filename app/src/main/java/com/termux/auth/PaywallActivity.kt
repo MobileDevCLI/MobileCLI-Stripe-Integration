@@ -367,6 +367,7 @@ class PaywallActivity : AppCompatActivity() {
                 connection.requestMethod = "POST"
                 connection.setRequestProperty("Content-Type", "application/json")
                 connection.setRequestProperty("Authorization", "Bearer ${SupabaseClient.getAccessToken()}")
+                connection.setRequestProperty("apikey", SupabaseClient.SUPABASE_ANON_KEY)
                 connection.doOutput = true
                 connection.connectTimeout = 30000
                 connection.readTimeout = 30000
@@ -502,6 +503,7 @@ class PaywallActivity : AppCompatActivity() {
                 connection.requestMethod = "POST"
                 connection.setRequestProperty("Content-Type", "application/json")
                 connection.setRequestProperty("Authorization", "Bearer ${SupabaseClient.getAccessToken()}")
+                connection.setRequestProperty("apikey", SupabaseClient.SUPABASE_ANON_KEY)
                 connection.doOutput = true
                 connection.connectTimeout = 30000
                 connection.readTimeout = 30000
